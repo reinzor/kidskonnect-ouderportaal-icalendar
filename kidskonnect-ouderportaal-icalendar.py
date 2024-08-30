@@ -55,30 +55,40 @@ PRODID:kidskonnect-ouderportaal-icalendar
 """
 )
 
+entries = {}
 for day in agenda_response.json()["payload"]["days"]:
     for child in day["children"]:
-        fullname = child["child"]["fullname"]
+        first_name = child["child"]["firstName"]
         for combined_planning_part in child["combinedPlanningParts"]:
             for planning_part in combined_planning_part["planningParts"]:
-                SUMMARY = "Kinderopvang {}".format(fullname)
-                DTSTART = datetime.utcfromtimestamp(
-                    planning_part["startTime"] / 1000
-                ).strftime("%Y%m%dT%H%M%SZ")
-                DTEND = datetime.utcfromtimestamp(
-                    planning_part["endTime"] / 1000
-                ).strftime("%Y%m%dT%H%M%SZ")
-                uid = str(uuid4())
-                UID = "{}@{}.org".format(uid, uid[:4])
-                args.filename.write(
-                    """BEGIN:VEVENT
+                start_time = planning_part["startTime"]
+                end_time = planning_part["endTime"]
+                extra_info = planning_part["extraInfo"]
+
+                slot = (start_time, end_time)
+                text = f"{first_name} ({extra_info})" if extra_info else first_name
+
+                if slot in entries:
+                    entries[slot].append(text)
+                else:
+                    entries[slot] = [text]
+
+for (start_time, end_time), texts in entries.items():
+    SUMMARY = ", ".join(texts)
+    DTSTART = datetime.utcfromtimestamp(start_time / 1000).strftime("%Y%m%dT%H%M%SZ")
+    DTEND = datetime.utcfromtimestamp(end_time / 1000).strftime("%Y%m%dT%H%M%SZ")
+    uid = str(uuid4())
+    UID = "{}@{}.org".format(uid, uid[:4])
+    args.filename.write(
+        """BEGIN:VEVENT
 DTEND:{}
 DTSTART:{}
 SUMMARY:{}
 UID:{}
 END:VEVENT
 """.format(
-                        DTEND, DTSTART, SUMMARY, UID
-                    )
-                )
+            DTEND, DTSTART, SUMMARY, UID
+        )
+    )
 
 args.filename.write("END:VCALENDAR")
